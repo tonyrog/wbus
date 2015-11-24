@@ -1,0 +1,13 @@
+{application, wbus,
+ [
+  {description, ""},
+  {vsn, "1"},
+  {registered, []},
+  {applications, [
+                  kernel,
+                  stdlib,
+		  uart
+                 ]},
+  {mod, { wbus_app, []}},
+  {env, []}
+ ]}.
