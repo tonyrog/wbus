@@ -94,8 +94,10 @@ recv(U, Len, Chk) ->
 
 %% recv
 recv(U, Len) ->
-    recv_(U, Len, <<>>).
+    uart:recv(U, Len, 2000).
+%%    recv_(U, Len, <<>>).
 
+-ifdef(hard_debug).
 %% recv loop ( temporary loop for debugging )
 recv_(_U, 0, Acc) ->
     {ok, Acc};
@@ -108,6 +110,7 @@ recv_(U, Len, Acc) ->
 	    io:format("got error ~p\n", [Error]),
 	    Error
     end.
+-endif.
 
 %% wait until we see address on wbus.
 wait_address(U, Addr) ->
@@ -133,9 +136,9 @@ io_request_(U, Cmd, Data, Data2, Skip) ->
 io_try_request(U, Cmd, Data, Data2, Skip, I) when I =< ?NUM_RETRIES ->
     if I > 0 -> timer:sleep(50); true -> ok end,
     case io_do_request(U, Cmd, Data, Data2, Skip) of
-	{ok, Data} ->
+	{ok, DataOut} ->
 	    timer:sleep(30),  %% add some space for next request
-	    {ok,Data};
+	    {ok,DataOut};
 	Error ->
 	    io:format("wbus: error ~p\n", [Error]),
 	    io_try_request(U, Cmd, Data, Data2, Skip, I+1)
@@ -169,10 +172,11 @@ get_basic_info(U) ->
     {ok, DevID}   = ident(U, ?IDENT_DEV_ID),
     {ok, DomCU}   = ident(U, ?IDENT_DOM_CU),
     {ok, DomHT}   = ident(U, ?IDENT_DOM_HT),
-    {ok, CustID}  = ident(U, ?IDENT_CUSTID),
+%%  {ok, CustID}  = ident(U, ?IDENT_CUSTID),
     {ok, Serial}  = ident(U, ?IDENT_SERIAL),
+    %% {custid,CustID}
     {ok, [{device,DevName},{id,DevID},{cu,DomCU},{ht,DomHT},
-	  {custid,CustID},{serial,Serial}]}.
+	  {serial,Serial}]}.
 
 sensor_read(U, query_state) ->
     sensor_read(U, ?QUERY_STATE);
@@ -195,17 +199,30 @@ sensor_read(U, Idx) when is_integer(Idx) ->
     end.
 
 decode_sensors(?QUERY_STATE, Value) ->
-    [{op, binary:at(Value, ?OP_STATE)},
-     {n, binary:at(Value, ?OP_STATE_N)},
-     {dev, binary:at(Value, ?DEV_STATE)}];
+    [{op, get_byte(?OP_STATE, Value)},
+     {n, get_byte(?OP_STATE_N, Value)},
+     {dev, get_byte( ?DEV_STATE, Value)}];
 decode_sensors(?QUERY_SENSORS, Value) ->
-    [{temperature, binary:at(Value, ?SEN_TEMP)},
-     {voltage, binary:at(Value, ?SEN_VOLT)},
-     {flame_detect, binary:at(Value, ?SEN_FD)},
-     {heat_energy, binary:at(Value, ?SEN_HE)},
-     {glow_resistance, binary:at(Value, ?SEN_GPR)}];
+    [{temperature, get_byte(?SEN_TEMP,Value)-50},
+     {voltage, get_short(?SEN_VOLT, Value)/1000},
+     {flame_detect, get_byte(?SEN_FD,Value)},
+     {heat_energy, get_short(?SEN_HE, Value)},
+     {glow_resistance, {get_byte(?SEN_GPR,Value),get_byte(?SEN_GPR+1,Value)}}];
 decode_sensors(_ID, Value) ->
     [{data, Value}].
+
+
+get_byte(Offset, Data) ->
+    case Data of
+	<<_:Offset/binary, Value, _/binary>> ->
+	    Value
+    end.
+
+get_short(Offset, Data) ->
+    case Data of
+	<<_:Offset/binary, Value:16, _/binary>> ->
+	    Value
+    end.
 
 check(U, Mode) ->
     io_request_(U, ?WBUS_CMD_CHK, <<Mode,0>>, <<>>, 0).
