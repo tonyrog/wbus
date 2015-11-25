@@ -1,13 +1,18 @@
 %% W-Bus constant definitions
+%%
+%% Author: Manuel Jander
+%% mjander@users.sourceforge.net
+%%
+%% Ported by me.
 
 -ifndef(__WBUS_HRL__).
 -define(__WBUS_HRL__, true).
 
-%% W-Bus addresses_
+%% W-Bus addresses
 %% 0xf : thermo Test Software
 %% 0x4 : heating device
 %% 0x3 : 1533 Timer
-%% 16#2 : Telestart
+%% 0x2 : Telestart
 %%
 
 %% address as client

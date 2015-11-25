@@ -17,9 +17,14 @@ open() ->
     open("/dev/tty.usbserial-A901HOK3", 2400). %% 2400).
 
 open(Device, Baud) ->
-    uart:open(Device, [{baud, Baud},{parity,even},{stopb,1},{mode,binary},
-		       {active,false}]).
+    uart:open(Device, [{baud, Baud},{parity,even},{stopb,1},
+			    {mode,binary},{active,false}]).
 
+init(U) ->
+    uart:break(U, 50),
+    timer:sleep(50).
+    %% uart:flush(U)  
+	    
 close(U) ->
     uart:close(U).
 
@@ -120,6 +125,10 @@ recv_data(U, Len, Chk) ->
 io_request(U, Cmd, Data, Data2, Skip) ->
     io_try_request(U, Cmd, Data, Data2, Skip, 0).
 
+io_request_(U, Cmd, Data, Data2, Skip) ->
+    init(U),
+    io_try_request(U, Cmd, Data, Data2, Skip, 0).
+
 io_try_request(U, Cmd, Data, Data2, Skip, I) when I =< ?NUM_RETRIES ->
     if I > 0 -> timer:sleep(50); true -> ok end,
     case io_do_request(U, Cmd, Data, Data2, Skip) of
@@ -178,7 +187,7 @@ sensor_read(U, Idx) when is_integer(Idx) ->
 	14 -> {ok, <<>>};
 	16 -> {ok, <<>>};
 	_ ->
-	    case io_request(U, ?WBUS_CMD_QUERY, <<Idx>>, <<>>, 1) of
+	    case io_request_(U, ?WBUS_CMD_QUERY, <<Idx>>, <<>>, 1) of
 		{ok, Values} -> {ok, decode_sensors(Idx, Values)};
 		Error -> Error
 	    end
@@ -198,7 +207,7 @@ decode_sensors(_ID, Value) ->
     [{data, Value}].
 
 check(U, Mode) ->
-    io_request(U, ?WBUS_CMD_CHK, <<Mode,0>>, <<>>, 0).
+    io_request_(U, ?WBUS_CMD_CHK, <<Mode,0>>, <<>>, 0).
 
 turn_on(U, Time) -> %% default?
     turn_on(U, ?WBUS_CMD_ON, Time).
@@ -210,19 +219,19 @@ turn_on(U, ventilation, Time) ->
 turn_on(U, supplumental_heating, Time) ->
     turn_on(U, ?WBUS_CMD_ON_SH, Time);
 turn_on(U, Cmd, Time) when is_integer(Cmd) ->
-    io_request(U, Cmd, <<Time>>, <<>>, 0).
+    io_request_(U, Cmd, <<Time>>, <<>>, 0).
 
 turn_off(U) ->
-    io_request(U, ?WBUS_CMD_OFF, <<>>, <<>>, 0).
+    io_request_(U, ?WBUS_CMD_OFF, <<>>, <<>>, 0).
 
 fuel_prime(U,Time) ->
-    io_request(U, ?WBUS_CMD_X, <<16#03,16#00,(Time bsr 1)>>, <<>>, 0).
+    io_request_(U, ?WBUS_CMD_X, <<16#03,16#00,(Time bsr 1)>>, <<>>, 0).
 
 get_fault_count(U) ->
-    io_request(U, ?WBUS_CMD_ERR, <<?ERR_LIST>>, <<>>, 1).
+    io_request_(U, ?WBUS_CMD_ERR, <<?ERR_LIST>>, <<>>, 1).
 
 clear_faults(U) ->
-    io_request(U, ?WBUS_CMD_ERR, <<?ERR_DEL>>, <<>>, 0).
+    io_request_(U, ?WBUS_CMD_ERR, <<?ERR_DEL>>, <<>>, 0).
 
 get_fault(U, ErrorNumber) ->
-    io_request(U, ?WBUS_CMD_ERR, <<?ERR_READ,ErrorNumber>>, <<>>,  1).
+    io_request_(U, ?WBUS_CMD_ERR, <<?ERR_READ,ErrorNumber>>, <<>>,  1).
