@@ -21,21 +21,17 @@ open(Device, Baud) ->
 			    {mode,binary},{active,false}]).
 
 init(U) ->
-    uart:break(U, 50),
-    timer:sleep(50).
-    %% uart:flush(U)  
+    io:format("send break\n"),
+    ok = uart:break(U, 50),
+    ok = timer:sleep(50),
+    ok = uart:flush(U, input).
 	    
 close(U) ->
     uart:close(U).
 
-checksum(<<C,Rest/binary>>, Chk) ->
-    checksum(Rest, C bxor Chk);
-checksum(<<>>, Chk) ->
-    Chk.
-
 %% Send Wbus message
 
-send(U, Addr, Cmd, Data, Data2) ->
+send_message(U, Addr, Cmd, Data, Data2) ->
     Len = byte_size(Data)+byte_size(Data2)+2,
     Header = <<Addr, Len, Cmd>>,
     Chk1 = checksum(Header, 0),
@@ -53,22 +49,7 @@ send(U, Addr, Cmd, Data, Data2) ->
 	Error -> Error
     end.
 
-recv(U, Len) ->
-    recv_(U, Len, <<>>).
-
-recv_(_U, 0, Acc) ->
-    {ok, Acc};
-recv_(U, Len, Acc) ->
-    case uart:recv(U, 1, 2000) of
-	{ok,<<C>>} ->
-	    io:format("got ~w\n", [C]),
-	    recv_(U, Len-1, <<Acc/binary, C>>);
-	Error ->
-	    io:format("got error ~p\n", [Error]),
-	    Error
-    end.
-
-recv(U, Addr, Cmd, Skip) ->
+recv_message(U, Addr, Cmd, Skip) ->
     case wait_address(U, Addr) of
 	ok ->
 	    case recv(U, 2) of
@@ -77,11 +58,11 @@ recv(U, Addr, Cmd, Skip) ->
 			    {ok,<<>>};
 		       true ->
 			    Chk0 = checksum(<<Addr,Len,Cmd1>>, 0),
-			    {ok,Chk1,_Data0} = recv_data(U, Skip, Chk0),
+			    {ok,Chk1,_Data0} = recv(U, Skip, Chk0),
 			    io:format("recv_data ~w = ~p check1=~w\n", 
 				      [Skip,_Data0,Chk1]),
 			    Len1 = Len - 2 - Skip,
-			    {ok,Chk2,Data} = recv_data(U, Len1, Chk1),
+			    {ok,Chk2,Data} = recv(U, Len1, Chk1),
 			    io:format("recv_data ~w = ~p check2=~w\n", 
 				      [Len1,Data,Chk2]),
 			    case recv(U, 1) of
@@ -99,6 +80,35 @@ recv(U, Addr, Cmd, Skip) ->
 	    Error
     end.
 
+%% recv and checksum
+recv(_U, 0, Chk) ->
+    {ok, Chk, <<>>};
+recv(U, Len, Chk) ->			    
+    case recv(U, Len) of
+	{ok,Data} ->
+	    Chk1 = checksum(Data, Chk),
+	    {ok, Chk1, Data};
+	Error ->
+	    Error
+    end.
+
+%% recv
+recv(U, Len) ->
+    recv_(U, Len, <<>>).
+
+%% recv loop ( temporary loop for debugging )
+recv_(_U, 0, Acc) ->
+    {ok, Acc};
+recv_(U, Len, Acc) ->
+    case uart:recv(U, 1, 2000) of
+	{ok,<<C>>} ->
+	    io:format("recv_data got ~w\n", [C]),
+	    recv_(U, Len-1, <<Acc/binary, C>>);
+	Error ->
+	    io:format("got error ~p\n", [Error]),
+	    Error
+    end.
+
 %% wait until we see address on wbus.
 wait_address(U, Addr) ->
     case recv(U, 1) of
@@ -110,16 +120,7 @@ wait_address(U, Addr) ->
 	    Error
     end.
 
-recv_data(_U, 0, Chk) ->
-    {ok, Chk, <<>>};
-recv_data(U, Len, Chk) ->			    
-    case recv(U, Len) of
-	{ok,Data} ->
-	    Chk1 = checksum(Data, Chk),
-	    {ok, Chk1, Data};
-	Error ->
-	    Error
-    end.
+
 
 %% Send a client W-Bus request and read answer from Heater.
 io_request(U, Cmd, Data, Data2, Skip) ->
@@ -144,10 +145,10 @@ io_try_request(_U, _Cmd, _Data, _Data2, _Skip, _I) ->
 
 io_do_request(U, Cmd, Data, Data2, Skip) ->
     Addr = (?WBUS_CADDR bsl 4) bor ?WBUS_HADDR,
-    case send(U, Addr, Cmd, Data, Data2) of
+    case send_message(U, Addr, Cmd, Data, Data2) of
 	ok ->
 	    RAddr = (?WBUS_HADDR bsl 4) bor ?WBUS_CADDR,
-	    case recv(U, RAddr, Cmd, Skip) of
+	    case recv_message(U, RAddr, Cmd, Skip) of
 		{ok, Data} -> {ok,Data};
 		Error -> Error
 	    end;
@@ -161,7 +162,7 @@ ident(U, dom_ht) ->  ident(U, ?IDENT_DOM_HT);
 ident(U, custid) ->  ident(U, ?IDENT_CUSTID);
 ident(U, serial) ->  ident(U, ?IDENT_SERIAL);
 ident(U, IdentCmd) when is_integer(IdentCmd) ->
-    io_request(U, ?WBUS_CMD_IDENT, <<IdentCmd>>, <<>>, 1).
+    io_request_(U, ?WBUS_CMD_IDENT, <<IdentCmd>>, <<>>, 1).
 
 get_basic_info(U) ->
     {ok, DevName} = ident(U, ?IDENT_DEV_NAME),
@@ -235,3 +236,8 @@ clear_faults(U) ->
 
 get_fault(U, ErrorNumber) ->
     io_request_(U, ?WBUS_CMD_ERR, <<?ERR_READ,ErrorNumber>>, <<>>,  1).
+
+checksum(<<C,Rest/binary>>, Chk) ->
+    checksum(Rest, C bxor Chk);
+checksum(<<>>, Chk) ->
+    Chk.
