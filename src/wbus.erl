@@ -11,7 +11,11 @@
 
 -compile(export_all).
 
+-define(dbg(F,A), ok).
+%% -define(dbg(F,A), io:format((F),(A))).
+
 -define(NUM_RETRIES, 4).
+
 
 open() ->
     open("/dev/tty.usbserial-A901HOK3", 2400). %% 2400).
@@ -21,7 +25,7 @@ open(Device, Baud) ->
 			    {mode,binary},{active,false}]).
 
 init(U) ->
-    io:format("send break\n"),
+    ?dbg("send break\n", []),
     ok = uart:break(U, 50),
     ok = timer:sleep(50),
     ok = uart:flush(U, input).
@@ -38,8 +42,8 @@ send_message(U, Addr, Cmd, Data, Data2) ->
     Chk2 = checksum(Data, Chk1),
     Chk3 = checksum(Data2, Chk2),
     Message = <<Header/binary, Data/binary, Data2/binary, Chk3>>,
-    io:format("sending message: header=~p, data=~w, data2=~w, check=~w\n", 
-	      [Header, Data, Data2, Chk3]),
+    ?dbg("sending message: header=~p, data=~w, data2=~w, check=~w\n", 
+	 [Header, Data, Data2, Chk3]),
     ok = uart:send(U, Message),  %% Send message
     MessageSize = byte_size(Message),
     %% Read and check echoed Message
@@ -59,12 +63,12 @@ recv_message(U, Addr, Cmd, Skip) ->
 		       true ->
 			    Chk0 = checksum(<<Addr,Len,Cmd1>>, 0),
 			    {ok,Chk1,_Data0} = recv(U, Skip, Chk0),
-			    io:format("recv_data ~w = ~p check1=~w\n", 
-				      [Skip,_Data0,Chk1]),
+			    ?dbg("recv_data ~w = ~p check1=~w\n", 
+				 [Skip,_Data0,Chk1]),
 			    Len1 = Len - 2 - Skip,
 			    {ok,Chk2,Data} = recv(U, Len1, Chk1),
-			    io:format("recv_data ~w = ~p check2=~w\n", 
-				      [Len1,Data,Chk2]),
+			    ?dbg("recv_data ~w = ~p check2=~w\n", 
+				 [Len1,Data,Chk2]),
 			    case recv(U, 1) of
 				{ok, <<Chk2>>} ->
 				    {ok,Data};
@@ -104,7 +108,7 @@ recv_(_U, 0, Acc) ->
 recv_(U, Len, Acc) ->
     case uart:recv(U, 1, 2000) of
 	{ok,<<C>>} ->
-	    io:format("recv_data got ~w\n", [C]),
+	    ?dbg("recv_data got ~w\n", [C]),
 	    recv_(U, Len-1, <<Acc/binary, C>>);
 	Error ->
 	    io:format("got error ~p\n", [Error]),
@@ -207,7 +211,7 @@ decode_sensors(?QUERY_SENSORS, Value) ->
      {voltage, get_short(?SEN_VOLT, Value)/1000},
      {flame_detect, get_byte(?SEN_FD,Value)},
      {heat_energy, get_short(?SEN_HE, Value)},
-     {glow_resistance, {get_byte(?SEN_GPR,Value),get_byte(?SEN_GPR+1,Value)}}];
+     {glow_resistance, get_short(?SEN_GPR,Value)/1000}];
 decode_sensors(_ID, Value) ->
     [{data, Value}].
 
