@@ -238,7 +238,7 @@ turn_on(U, park_heating, Time) ->
     turn_on(U, ?WBUS_CMD_ON_PH, Time);
 turn_on(U, ventilation, Time) -> 
     turn_on(U, ?WBUS_CMD_ON_VENT, Time);
-turn_on(U, supplumental_heating, Time) ->
+turn_on(U, supplemental_heating, Time) ->
     turn_on(U, ?WBUS_CMD_ON_SH, Time);
 turn_on(U, Cmd, Time) when is_integer(Cmd) ->
     io_request_(U, Cmd, <<Time>>, <<>>, 0).
