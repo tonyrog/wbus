@@ -17,25 +17,32 @@
 -define(NUM_RETRIES, 4).
 
 
+-spec open() -> {'error',_} | {'ok',port()}.
 open() ->
     open("/dev/tty.usbserial-A901HOK3", 2400). %% 2400).
 
+-spec open(string(),_) -> {'error',_} | {'ok',port()}.
 open(Device, Baud) ->
     uart:open(Device, [{baud, Baud},{parity,even},{stopb,1},
 			    {mode,binary},{active,false}]).
 
+
+-spec init(port()) -> 'ok'.
 init(U) ->
     ?dbg("send break\n", []),
     ok = uart:break(U, 50),
     ok = timer:sleep(50),
     ok = uart:flush(U, input).
 	    
+-spec close(port()) -> 'true'.
 close(U) ->
     uart:close(U).
 
 %% Send Wbus message
-
-send_message(U, Addr, Cmd, Data, Data2) ->
+-spec send_message(port(), integer(), integer(), binary(), binary()) ->
+			  ok |
+			  {error, _}.
+send_message(U, Addr, Cmd, Data, Data2) when is_port(U) ->
     Len = byte_size(Data)+byte_size(Data2)+2,
     Header = <<Addr, Len, Cmd>>,
     Chk1 = checksum(Header, 0),
@@ -53,7 +60,7 @@ send_message(U, Addr, Cmd, Data, Data2) ->
 	Error -> Error
     end.
 
-recv_message(U, Addr, Cmd, Skip) ->
+recv_message(U, Addr, Cmd, Skip) when is_port(U) ->
     case wait_address(U, Addr) of
 	ok ->
 	    case recv(U, 2) of
@@ -85,9 +92,11 @@ recv_message(U, Addr, Cmd, Skip) ->
     end.
 
 %% recv and checksum
+-spec recv(U::port(), Len::non_neg_integer(), Chk::non_neg_integer()) -> 
+		  {ok,non_neg_integer(),binary()} | {error, term()}.
 recv(_U, 0, Chk) ->
     {ok, Chk, <<>>};
-recv(U, Len, Chk) ->			    
+recv(U, Len, Chk) when is_port(U) ->			    
     case recv(U, Len) of
 	{ok,Data} ->
 	    Chk1 = checksum(Data, Chk),
@@ -97,7 +106,9 @@ recv(U, Len, Chk) ->
     end.
 
 %% recv
-recv(U, Len) ->
+-spec recv(U::port(), Len::non_neg_integer()) -> 
+		  {ok,binary()} | {error, term()}.
+recv(U, Len) when is_port(U) ->
     uart:recv(U, Len, 2000).
 %%    recv_(U, Len, <<>>).
 
@@ -105,7 +116,7 @@ recv(U, Len) ->
 %% recv loop ( temporary loop for debugging )
 recv_(_U, 0, Acc) ->
     {ok, Acc};
-recv_(U, Len, Acc) ->
+recv_(U, Len, Acc) when is_port(U) ->
     case uart:recv(U, 1, 2000) of
 	{ok,<<C>>} ->
 	    ?dbg("recv_data got ~w\n", [C]),
@@ -117,7 +128,7 @@ recv_(U, Len, Acc) ->
 -endif.
 
 %% wait until we see address on wbus.
-wait_address(U, Addr) ->
+wait_address(U, Addr) when is_port(U) ->
     case recv(U, 1) of
 	{ok, <<Addr>>} ->
 	    ok;
@@ -130,14 +141,22 @@ wait_address(U, Addr) ->
 
 
 %% Send a client W-Bus request and read answer from Heater.
-io_request(U, Cmd, Data, Data2, Skip) ->
+-spec io_request(U::port(), 
+		 Cmd::integer(), 
+		 Data::binary(), 
+		 Data2::binary(), 
+		 Skip::integer()) ->
+		   {ok, Data::binary()} |
+		   {error, term()}.
+io_request(U, Cmd, Data, Data2, Skip) when is_port(U) ->
     io_try_request(U, Cmd, Data, Data2, Skip, 0).
 
-io_request_(U, Cmd, Data, Data2, Skip) ->
+io_request_(U, Cmd, Data, Data2, Skip) when is_port(U) ->
     init(U),
     io_try_request(U, Cmd, Data, Data2, Skip, 0).
 
-io_try_request(U, Cmd, Data, Data2, Skip, I) when I =< ?NUM_RETRIES ->
+io_try_request(U, Cmd, Data, Data2, Skip, I) 
+  when is_port(U), I =< ?NUM_RETRIES ->
     if I > 0 -> timer:sleep(50); true -> ok end,
     case io_do_request(U, Cmd, Data, Data2, Skip) of
 	{ok, DataOut} ->
@@ -150,7 +169,7 @@ io_try_request(U, Cmd, Data, Data2, Skip, I) when I =< ?NUM_RETRIES ->
 io_try_request(_U, _Cmd, _Data, _Data2, _Skip, _I) ->
     {error, too_many_retries}.
 
-io_do_request(U, Cmd, Data, Data2, Skip) ->
+io_do_request(U, Cmd, Data, Data2, Skip) when is_port(U) ->
     Addr = (?WBUS_CADDR bsl 4) bor ?WBUS_HADDR,
     case send_message(U, Addr, Cmd, Data, Data2) of
 	ok ->
@@ -162,16 +181,20 @@ io_do_request(U, Cmd, Data, Data2, Skip) ->
 	Error -> Error
     end.
 
-ident(U, dev_name) ->  ident(U, ?IDENT_DEV_NAME);
-ident(U, dev_id) ->  ident(U, ?IDENT_DEV_ID);
-ident(U, dom_cu) ->  ident(U, ?IDENT_DOM_CU);
-ident(U, dom_ht) ->  ident(U, ?IDENT_DOM_HT);
-ident(U, custid) ->  ident(U, ?IDENT_CUSTID);
-ident(U, serial) ->  ident(U, ?IDENT_SERIAL);
-ident(U, IdentCmd) when is_integer(IdentCmd) ->
+-spec ident(U::port(), Cmd::atom() | integer()) ->
+		   {ok, Data::binary()} |
+		   {error, term()}.
+ident(U, dev_name) when is_port(U) ->  ident(U, ?IDENT_DEV_NAME);
+ident(U, dev_id) when is_port(U) ->  ident(U, ?IDENT_DEV_ID);
+ident(U, dom_cu) when is_port(U) ->  ident(U, ?IDENT_DOM_CU);
+ident(U, dom_ht) when is_port(U) ->  ident(U, ?IDENT_DOM_HT);
+ident(U, custid) when is_port(U) ->  ident(U, ?IDENT_CUSTID);
+ident(U, serial) when is_port(U) ->  ident(U, ?IDENT_SERIAL);
+ident(U, IdentCmd) when is_port(U), is_integer(IdentCmd) ->
     io_request_(U, ?WBUS_CMD_IDENT, <<IdentCmd>>, <<>>, 1).
 
-get_basic_info(U) ->
+-spec get_basic_info(U::port()) -> {ok, list()}.
+get_basic_info(U) when is_port(U) ->
     {ok, DevName} = ident(U, ?IDENT_DEV_NAME),
     {ok, DevID}   = ident(U, ?IDENT_DEV_ID),
     {ok, DomCU}   = ident(U, ?IDENT_DOM_CU),
@@ -182,11 +205,11 @@ get_basic_info(U) ->
     {ok, [{device,DevName},{id,DevID},{cu,DomCU},{ht,DomHT},
 	  {serial,Serial}]}.
 
-sensor_read(U, query_state) ->
+sensor_read(U, query_state) when is_port(U) ->
     sensor_read(U, ?QUERY_STATE);
-sensor_read(U, query_sensors) ->
+sensor_read(U, query_sensors) when is_port(U) ->
     sensor_read(U, ?QUERY_SENSORS);
-sensor_read(U, Idx) when is_integer(Idx) ->
+sensor_read(U, Idx) when is_port(U), is_integer(Idx) ->
     case Idx of
 	0 -> {ok, <<>>};
 	1 -> {ok, <<>>};
@@ -228,36 +251,38 @@ get_short(Offset, Data) ->
 	    Value
     end.
 
-check(U, Mode) ->
+check(U, Mode) when is_port(U) ->
     io_request_(U, ?WBUS_CMD_CHK, <<Mode,0>>, <<>>, 0).
 
-turn_on(U, Time) -> %% default?
+turn_on(U, Time) when is_port(U) -> %% default?
     turn_on(U, ?WBUS_CMD_ON, Time).
 
-turn_on(U, park_heating, Time) ->
+turn_on(U, park_heating, Time) when is_port(U) ->
     turn_on(U, ?WBUS_CMD_ON_PH, Time);
-turn_on(U, ventilation, Time) -> 
+turn_on(U, ventilation, Time) when is_port(U) -> 
     turn_on(U, ?WBUS_CMD_ON_VENT, Time);
-turn_on(U, supplemental_heating, Time) ->
+turn_on(U, supplemental_heating, Time) when is_port(U) ->
     turn_on(U, ?WBUS_CMD_ON_SH, Time);
-turn_on(U, Cmd, Time) when is_integer(Cmd) ->
+turn_on(U, Cmd, Time) when is_port(U), is_integer(Cmd) ->
     io_request_(U, Cmd, <<Time>>, <<>>, 0).
 
-turn_off(U) ->
+turn_off(U) when is_port(U) ->
     io_request_(U, ?WBUS_CMD_OFF, <<>>, <<>>, 0).
 
-fuel_prime(U,Time) ->
+fuel_prime(U,Time) when is_port(U) ->
     io_request_(U, ?WBUS_CMD_X, <<16#03,16#00,(Time bsr 1)>>, <<>>, 0).
 
-get_fault_count(U) ->
+get_fault_count(U) when is_port(U) ->
     io_request_(U, ?WBUS_CMD_ERR, <<?ERR_LIST>>, <<>>, 1).
 
-clear_faults(U) ->
+clear_faults(U) when is_port(U) ->
     io_request_(U, ?WBUS_CMD_ERR, <<?ERR_DEL>>, <<>>, 0).
 
-get_fault(U, ErrorNumber) ->
+get_fault(U, ErrorNumber) when is_port(U) ->
     io_request_(U, ?WBUS_CMD_ERR, <<?ERR_READ,ErrorNumber>>, <<>>,  1).
 
+-spec checksum(Data::binary(), Chk::integer()) ->
+    integer().
 checksum(<<C,Rest/binary>>, Chk) ->
     checksum(Rest, C bxor Chk);
 checksum(<<>>, Chk) ->
