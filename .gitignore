@@ -1,0 +1,7 @@
+*~
+ebin/
+rel/
+log/
+logs/
+.rebar/
+test/ct_run.*
