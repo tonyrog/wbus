@@ -174,10 +174,6 @@ wait_address(U, Addr) when is_port(U) ->
 io_request(U, Cmd, Data, Data2, Skip) when is_port(U) ->
     io_try_request(U, Cmd, Data, Data2, Skip, 0).
 
-io_request_(U, Cmd, Data, Data2, Skip) when is_port(U) ->
-    init(U),
-    io_try_request(U, Cmd, Data, Data2, Skip, 0).
-
 io_try_request(U, Cmd, Data, Data2, Skip, I) 
   when is_port(U), I =< ?NUM_RETRIES ->
     if I > 0 -> timer:sleep(50); true -> ok end,
@@ -214,7 +210,7 @@ ident(U, dom_ht) when is_port(U) ->  ident(U, ?IDENT_DOM_HT);
 ident(U, custid) when is_port(U) ->  ident(U, ?IDENT_CUSTID);
 ident(U, serial) when is_port(U) ->  ident(U, ?IDENT_SERIAL);
 ident(U, IdentCmd) when is_port(U), is_integer(IdentCmd) ->
-    io_request_(U, ?WBUS_CMD_IDENT, <<IdentCmd>>, <<>>, 1).
+    io_request(U, ?WBUS_CMD_IDENT, <<IdentCmd>>, <<>>, 1).
 
 -spec get_basic_info(U::port()) -> {ok, list()}.
 get_basic_info(U) when is_port(U) ->
@@ -242,7 +238,7 @@ sensor_read(U, Idx) when is_port(U), is_integer(Idx) ->
 	14 -> {ok, <<>>};
 	16 -> {ok, <<>>};
 	_ ->
-	    case io_request_(U, ?WBUS_CMD_QUERY, <<Idx>>, <<>>, 1) of
+	    case io_request(U, ?WBUS_CMD_QUERY, <<Idx>>, <<>>, 1) of
 		{ok, Values} -> {ok, decode_sensors(Idx, Values)};
 		Error -> Error
 	    end
@@ -275,7 +271,7 @@ get_short(Offset, Data) ->
     end.
 
 check(U, Mode) when is_port(U) ->
-    io_request_(U, ?WBUS_CMD_CHK, <<Mode,0>>, <<>>, 0).
+    io_request(U, ?WBUS_CMD_CHK, <<Mode,0>>, <<>>, 0).
 
 turn_on(U, Time) when is_port(U) -> %% default?
     turn_on(U, ?WBUS_CMD_ON, Time).
@@ -287,22 +283,22 @@ turn_on(U, ventilation, Time) when is_port(U) ->
 turn_on(U, supplemental_heating, Time) when is_port(U) ->
     turn_on(U, ?WBUS_CMD_ON_SH, Time);
 turn_on(U, Cmd, Time) when is_port(U), is_integer(Cmd) ->
-    io_request_(U, Cmd, <<Time>>, <<>>, 0).
+    io_request(U, Cmd, <<Time>>, <<>>, 0).
 
 turn_off(U) when is_port(U) ->
-    io_request_(U, ?WBUS_CMD_OFF, <<>>, <<>>, 0).
+    io_request(U, ?WBUS_CMD_OFF, <<>>, <<>>, 0).
 
 fuel_prime(U,Time) when is_port(U) ->
-    io_request_(U, ?WBUS_CMD_X, <<16#03,16#00,(Time bsr 1)>>, <<>>, 0).
+    io_request(U, ?WBUS_CMD_X, <<16#03,16#00,(Time bsr 1)>>, <<>>, 0).
 
 get_fault_count(U) when is_port(U) ->
-    io_request_(U, ?WBUS_CMD_ERR, <<?ERR_LIST>>, <<>>, 1).
+    io_request(U, ?WBUS_CMD_ERR, <<?ERR_LIST>>, <<>>, 1).
 
 clear_faults(U) when is_port(U) ->
-    io_request_(U, ?WBUS_CMD_ERR, <<?ERR_DEL>>, <<>>, 0).
+    io_request(U, ?WBUS_CMD_ERR, <<?ERR_DEL>>, <<>>, 0).
 
 get_fault(U, ErrorNumber) when is_port(U) ->
-    io_request_(U, ?WBUS_CMD_ERR, <<?ERR_READ,ErrorNumber>>, <<>>,  1).
+    io_request(U, ?WBUS_CMD_ERR, <<?ERR_READ,ErrorNumber>>, <<>>,  1).
 
 -spec checksum(Data::binary(), Chk::integer()) ->
     integer().
