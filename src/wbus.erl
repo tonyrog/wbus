@@ -15,23 +15,26 @@
 %% -define(dbg(F,A), io:format((F),(A))).
 
 -define(NUM_RETRIES, 4).
+-define(DEFAULT_BAUD, 2400).
+-define(BREAK_TIME, 25).
+-define(DELAY_TIME, 25).
+-define(RECV_TIMEOUT, 2000).
 
+-spec open(Device::string()) -> {'error',_} | {'ok',port()}.
+open(Device) ->
+    open(Device, ?DEFAULT_BAUD).
 
--spec open() -> {'error',_} | {'ok',port()}.
-open() ->
-    open("/dev/tty.usbserial-A901HOK3", 2400). %% 2400).
-
--spec open(string(),_) -> {'error',_} | {'ok',port()}.
+-spec open(Device::string(),Baud::integer()) -> {'error',_} | {'ok',port()}.
 open(Device, Baud) ->
     uart:open(Device, [{baud, Baud},{parity,even},{stopb,1},
-			    {mode,binary},{active,false}]).
+		       {mode,binary},{active,false}]).
 
 
 -spec init(port()) -> 'ok'.
 init(U) ->
     ?dbg("send break\n", []),
-    ok = uart:break(U, 50),
-    ok = timer:sleep(50),
+    ok = uart:break(U, ?BREAK_TIME),
+    ok = timer:sleep(?DELAY_TIME),
     ok = uart:flush(U, input).
 	    
 -spec close(port()) -> 'true'.
@@ -109,7 +112,7 @@ recv(U, Len, Chk) when is_port(U) ->
 -spec recv(U::port(), Len::non_neg_integer()) -> 
 		  {ok,binary()} | {error, term()}.
 recv(U, Len) when is_port(U) ->
-    uart:recv(U, Len, 2000).
+    uart:recv(U, Len, ?RECV_TIMEOUT).
 %%    recv_(U, Len, <<>>).
 
 -ifdef(hard_debug).
@@ -117,7 +120,7 @@ recv(U, Len) when is_port(U) ->
 recv_(_U, 0, Acc) ->
     {ok, Acc};
 recv_(U, Len, Acc) when is_port(U) ->
-    case uart:recv(U, 1, 2000) of
+    case uart:recv(U, 1, ?RECV_TIMEOUT) of
 	{ok,<<C>>} ->
 	    ?dbg("recv_data got ~w\n", [C]),
 	    recv_(U, Len-1, <<Acc/binary, C>>);
