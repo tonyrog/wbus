@@ -9,6 +9,22 @@
 
 -include("../include/wbus.hrl").
 
+-export([open/1, open/2]).
+-export([init/1, init/3]).
+-export([close/1]).
+-export([send_message/5]).
+-export([recv_message/4]).
+-export([recv/2, recv/3]).
+-export([wait_address/2]).
+-export([ident/2, get_basic_info/1]).
+-export([sensor_read/2]).
+-export([turn_on/2, turn_on/3]).
+-export([turn_off/1]).
+-export([fuel_prime/2]).
+-export([get_fault_count/1]).
+-export([clear_faults/1]).
+-export([get_fault/2]).
+
 -compile(export_all).
 
 -define(dbg(F,A), ok).
@@ -16,9 +32,9 @@
 
 -define(NUM_RETRIES, 4).
 -define(DEFAULT_BAUD, 2400).
--define(BREAK_TIME, 25).
--define(DELAY_TIME, 25).
 -define(RECV_TIMEOUT, 2000).
+-define(BREAK_TIME, 30).
+-define(PAUSE_TIME, 45).
 
 -spec open(Device::string()) -> {'error',_} | {'ok',port()}.
 open(Device) ->
@@ -31,10 +47,14 @@ open(Device, Baud) ->
 
 
 -spec init(port()) -> 'ok'.
+
 init(U) ->
+    init(U, ?BREAK_TIME, ?PAUSE_TIME).
+
+init(U, Break, Pause) ->
     ?dbg("send break\n", []),
-    ok = uart:break(U, ?BREAK_TIME),
-    ok = timer:sleep(?DELAY_TIME),
+    ok = uart:break(U, Break),
+    ok = timer:sleep(Pause),
     ok = uart:flush(U, input).
 	    
 -spec close(port()) -> 'true'.
