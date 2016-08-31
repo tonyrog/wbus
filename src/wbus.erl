@@ -164,29 +164,37 @@ wait_address(U, Addr) when is_port(U) ->
 
 
 %% Send a client W-Bus request and read answer from Heater.
--spec io_request(U::port(), 
-		 Cmd::integer(), 
-		 Data::binary(), 
-		 Data2::binary(), 
+-spec io_request(U::port(), Cmd::integer(), 
+		 Data::binary(), Data2::binary(), 
 		 Skip::integer()) ->
 		   {ok, Data::binary()} |
 		   {error, term()}.
 io_request(U, Cmd, Data, Data2, Skip) when is_port(U) ->
-    io_try_request(U, Cmd, Data, Data2, Skip, 0).
+    io_request(U, Cmd, Data, Data2, Skip, ?NUM_RETRIES).
 
+-spec io_request(U::port(), Cmd::integer(), 
+		 Data::binary(), Data2::binary(), 
+		 Skip::integer(), Retries::integer()) ->
+		   {ok, Data::binary()} |
+		   {error, term()}.
+io_request(U, Cmd, Data, Data2, Skip, Retries) when is_port(U) ->
+    io_try_request(U, Cmd, Data, Data2, Skip, Retries).
+
+io_try_request(_U, _Cmd, _Data, _Data2, _Skip, 0) ->
+    {error, too_many_retries};
 io_try_request(U, Cmd, Data, Data2, Skip, I) 
-  when is_port(U), I =< ?NUM_RETRIES ->
-    if I > 0 -> timer:sleep(50); true -> ok end,
+  when is_port(U), I > 0 ->
+    timer:sleep(50),
     case io_do_request(U, Cmd, Data, Data2, Skip) of
 	{ok, DataOut} ->
 	    timer:sleep(30),  %% add some space for next request
 	    {ok,DataOut};
+	{error, timeout} ->
+	    io_try_request(U, Cmd, Data, Data2, Skip, I-1);
 	Error ->
-	    io:format("wbus: error ~p\n", [Error]),
-	    io_try_request(U, Cmd, Data, Data2, Skip, I+1)
-    end;
-io_try_request(_U, _Cmd, _Data, _Data2, _Skip, _I) ->
-    {error, too_many_retries}.
+	    Error
+    end.
+
 
 io_do_request(U, Cmd, Data, Data2, Skip) when is_port(U) ->
     Addr = (?WBUS_CADDR bsl 4) bor ?WBUS_HADDR,
@@ -203,14 +211,19 @@ io_do_request(U, Cmd, Data, Data2, Skip) when is_port(U) ->
 -spec ident(U::port(), Cmd::atom() | integer()) ->
 		   {ok, Data::binary()} |
 		   {error, term()}.
-ident(U, dev_name) when is_port(U) ->  ident(U, ?IDENT_DEV_NAME);
-ident(U, dev_id) when is_port(U) ->  ident(U, ?IDENT_DEV_ID);
-ident(U, dom_cu) when is_port(U) ->  ident(U, ?IDENT_DOM_CU);
-ident(U, dom_ht) when is_port(U) ->  ident(U, ?IDENT_DOM_HT);
-ident(U, custid) when is_port(U) ->  ident(U, ?IDENT_CUSTID);
-ident(U, serial) when is_port(U) ->  ident(U, ?IDENT_SERIAL);
-ident(U, IdentCmd) when is_port(U), is_integer(IdentCmd) ->
-    io_request(U, ?WBUS_CMD_IDENT, <<IdentCmd>>, <<>>, 1).
+ident(U, Ident) ->
+    ident(U, Ident, ?NUM_RETRIES).
+
+ident(U, dev_name, R) when is_port(U) -> ident_(U, ?IDENT_DEV_NAME, R);
+ident(U, dev_id, R) when is_port(U) ->  ident_(U, ?IDENT_DEV_ID, R);
+ident(U, dom_cu, R) when is_port(U) ->  ident_(U, ?IDENT_DOM_CU, R);
+ident(U, dom_ht, R) when is_port(U) ->  ident_(U, ?IDENT_DOM_HT, R);
+ident(U, custid, R) when is_port(U) ->  ident_(U, ?IDENT_CUSTID, R);
+ident(U, serial, R) when is_port(U) ->  ident_(U, ?IDENT_SERIAL, R);
+ident(U, Cmd, R) when is_port(U), is_integer(Cmd) -> ident_(U, Cmd, R).
+
+ident_(U, Cmd, Retries) ->
+    io_request(U, ?WBUS_CMD_IDENT, <<Cmd>>, <<>>, 1, Retries).
 
 -spec get_basic_info(U::port()) -> {ok, list()}.
 get_basic_info(U) when is_port(U) ->
