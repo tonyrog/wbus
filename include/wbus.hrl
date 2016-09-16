@@ -102,11 +102,11 @@
 -define(STA04_T15,     16#01). %%!< ignition (terminal 15) 
 
 -define(QUERY_STATUS1, 16#03).
--define(STA10_CF,      16#01). %%!< Combustion Fan 
+-define(STA10_CF,      16#01). %%!< Combustion Fan
 -define(STA10_GP,      16#02). %%!< Glühkerze
 -define(STA10_FP,      16#04). %%!< Fuel Pump
--define(STA10_CP,      16#08). %%!< Circulation Pump 
--define(STA10_VF,      16#10). %%!< Vehicle Fan Relay 
+-define(STA10_CP,      16#08). %%!< Circulation Pump
+-define(STA10_VF,      16#10). %%!< Vehicle Fan Relay
 -define(STA10_NSH,     16#20). %%!< Nozzle stock heating
 -define(STA10_FI,      16#40). %%!< Flame indicator
 

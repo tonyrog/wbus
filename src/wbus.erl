@@ -42,8 +42,8 @@ open(Device) ->
 
 -spec open(Device::string(),Baud::integer()) -> {'error',_} | {'ok',port()}.
 open(Device, Baud) ->
-    uart:open(Device, [{baud, Baud},{parity,even},{stopb,1},
-		       {mode,binary},{active,false}]).
+    uart:open1(Device, [{baud, Baud},{parity,even},{stopb,1},
+			{mode,binary},{active,false}]).
 
 
 -spec init(port()) -> 'ok'.
