@@ -30,9 +30,9 @@
 -define(dbg(F,A), ok).
 %% -define(dbg(F,A), io:format((F),(A))).
 
--define(NUM_RETRIES, 4).
+-define(NUM_RETRIES, 2).
 -define(DEFAULT_BAUD, 2400).
--define(RECV_TIMEOUT, 2000).
+-define(RECV_TIMEOUT, 1000).
 -define(BREAK_TIME, 30).
 -define(PAUSE_TIME, 45).
 
@@ -180,10 +180,9 @@ io_request(U, Cmd, Data, Data2, Skip) when is_port(U) ->
 io_request(U, Cmd, Data, Data2, Skip, Retries) when is_port(U) ->
     io_try_request(U, Cmd, Data, Data2, Skip, Retries).
 
-io_try_request(_U, _Cmd, _Data, _Data2, _Skip, 0) ->
+io_try_request(_U, _Cmd, _Data, _Data2, _Skip, I) when I < 0 ->
     {error, too_many_retries};
-io_try_request(U, Cmd, Data, Data2, Skip, I) 
-  when is_port(U), I > 0 ->
+io_try_request(U, Cmd, Data, Data2, Skip, I) when is_port(U) ->
     timer:sleep(50),
     case io_do_request(U, Cmd, Data, Data2, Skip) of
 	{ok, DataOut} ->
